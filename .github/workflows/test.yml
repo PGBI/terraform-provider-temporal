@@ -6,18 +6,23 @@ on: [push, pull_request]
 jobs:
   tests:
     runs-on: ubuntu-latest
-    #services:
-    #  temporal:
-    #    image: temporalio/auto-setup:latest
-    #    ports:
-    #      - 7233:7233
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Set up Docker Compose
+        run: |
+          sudo apt-get update
+          sudo apt-get install docker-compose -y
+
+      - name: Start Temporal server
+        run: docker-compose -f ./docker_compose/docker-compose-postgres.yml up -d
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.21'
+
       - name: Cache Go modules
         uses: actions/cache@v4
         with:
@@ -27,7 +32,13 @@ jobs:
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
+
       - name: Install dependencies
         run: go mod download
+
       - name: Run Go tests
         run: make testacc
+
+      - name: Shut down services
+        if: always()
+        run: docker-compose -f ./docker_compose/docker-compose-postgres.yml down

@@ -7,13 +7,6 @@ import (
 
 const (
 	testProviderConfig = `
-terraform {
-  required_providers {
-    temporal = {
-      source = "pgbi/temporal"
-    }
-  }
-}
 provider "temporal" {
   address   = "localhost:7233"
   namespace = "default"
