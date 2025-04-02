@@ -35,3 +35,4 @@ provider "temporal" {
 
 - `address` (String) Address of the Temporal server. Of the form `host:port`.
 - `namespace` (String) Namespace to operate in.
+- `tls` (Bool) Whether to use TLS for the Temporal server connection. Defaults to `false`.

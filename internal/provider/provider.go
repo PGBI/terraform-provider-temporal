@@ -2,9 +2,15 @@ package provider
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"fmt"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"os"
+	"strconv"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
@@ -22,6 +28,7 @@ var (
 type temporalProviderModel struct {
 	Address   types.String `tfsdk:"address"`
 	Namespace types.String `tfsdk:"namespace"`
+	TLS       types.Bool   `tfsdk:"tls"`
 }
 
 type providerConfig struct {
@@ -55,12 +62,16 @@ func (p *temporalProvider) Schema(_ context.Context, _ provider.SchemaRequest, r
 		MarkdownDescription: "The Temporal Terraform Provider allows you to manage [Temporal](https://temporal.io/) resources using [Terraform](https://www.terraform.io/).",
 		Attributes: map[string]schema.Attribute{
 			"address": schema.StringAttribute{
-				Optional:    true,
+				Optional:            true,
 				MarkdownDescription: "Address of the Temporal server. Of the form `host:port`.",
 			},
 			"namespace": schema.StringAttribute{
 				Optional:    true,
 				Description: "Namespace to operate in.",
+			},
+			"tls": schema.BoolAttribute{
+				Optional:            true,
+				MarkdownDescription: "Whether to use TLS for the Temporal server connection. Defaults to `false`.",
 			},
 		},
 	}
@@ -81,6 +92,22 @@ func (p *temporalProvider) Configure(ctx context.Context, req provider.Configure
 	address := os.Getenv("TEMPORAL_ADDRESS")
 	if !config.Address.IsNull() {
 		address = config.Address.ValueString()
+	}
+
+	tlsEnabled := false
+	if !config.TLS.IsNull() {
+		tlsEnabled = config.TLS.ValueBool()
+	} else if os.Getenv("TLS") != "" {
+		var err error
+		tlsEnabled, err = strconv.ParseBool(os.Getenv("TLS"))
+		if err != nil {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("tls"),
+				fmt.Sprintf("Invalid value for TLS parameter: %s", os.Getenv("TLS")),
+				"TLS parameter value must be one of: true, false",
+			)
+			return
+		}
 	}
 
 	namespace := "default"
@@ -104,10 +131,27 @@ func (p *temporalProvider) Configure(ctx context.Context, req provider.Configure
 		return
 	}
 
-	temporalClient, err := client.Dial(client.Options{
+	clientOptions := client.Options{
 		HostPort:  address,
 		Namespace: namespace,
-	})
+	}
+	if tlsEnabled {
+		pool, err := x509.SystemCertPool()
+		if err != nil {
+			resp.Diagnostics.AddError("Couldn't load the system CA certificate pool", err.Error())
+			return
+		}
+		creds := credentials.NewTLS(&tls.Config{
+			RootCAs: pool,
+		})
+		dialOptions := []grpc.DialOption{
+			grpc.WithTransportCredentials(creds),
+		}
+		clientOptions.ConnectionOptions = client.ConnectionOptions{
+			DialOptions: dialOptions,
+		}
+	}
+	temporalClient, err := client.Dial(clientOptions)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to establish a connection with the Temporal server on "+address, err.Error())
 		return

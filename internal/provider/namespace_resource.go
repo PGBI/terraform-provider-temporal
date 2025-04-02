@@ -164,9 +164,9 @@ func (r *namespaceResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 			},
 			"history_archival_state": schema.StringAttribute{
 				MarkdownDescription: "History archival state. Accepted values: `disabled`, `enabled`. History archival must be enabled at the cluster level first to be able to enable it for a namespace.",
-				Optional:    true,
-				Computed:    true,
-				Default:     stringdefault.StaticString("disabled"),
+				Optional:            true,
+				Computed:            true,
+				Default:             stringdefault.StaticString("disabled"),
 				Validators: []validator.String{
 					validators.StringInSliceValidator{
 						AllowedValues: []string{"enabled", "disabled"},
@@ -376,6 +376,7 @@ func (r *namespaceResource) Delete(ctx context.Context, req resource.DeleteReque
 
 	_, err := r.client.OperatorService().DeleteNamespace(ctx, &operatorservice.DeleteNamespaceRequest{
 		NamespaceId: data.ID.ValueString(),
+		Namespace:   data.Name.ValueString(),
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("Error while deleting namespace "+data.Name.ValueString(), err.Error())
