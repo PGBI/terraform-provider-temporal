@@ -1,3 +1,13 @@
+## 0.1.2
+
+Features:
+
+- add support for TLS in Temporal server connection.
+
+Fixes:
+
+- fix error in deleting a namespace.
+
 ## 0.1.1
 
 Features:
